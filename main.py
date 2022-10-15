@@ -44,7 +44,11 @@ class MainWidget(RelativeLayout):
 
     NB_TILES = 16
     tiles = []
+    walls = []
     tiles_coordinates = []
+
+    WALL_OFFSET = 5
+    wall_present = False
 
     SHIP_WIDTH = .1
     SHIP_HEIGHT = 0.035
@@ -60,7 +64,6 @@ class MainWidget(RelativeLayout):
     score_txt = StringProperty()
 
     sound_begin = None
-    sound_begin = None
     sound_galaxy = None
     sound_gameover_impact = None
     sound_gameover_voice = None
@@ -74,6 +77,7 @@ class MainWidget(RelativeLayout):
         self.init_vertical_lines()
         self.init_horizontal_lines()
         self.init_tiles()
+        self.init_walls()
         self.init_ship()
         self.sound_galaxy.play()
         self.reset_game()
@@ -93,19 +97,26 @@ class MainWidget(RelativeLayout):
         self.sound_music1 = SoundLoader.load("audio/music1.wav")
         self.sound_restart = SoundLoader.load("audio/restart.wav")
 
-        self.sound_music1.volume = 1
-        self.sound_begin.volume = .25
-        self.sound_galaxy.volume = .25
-        self.sound_gameover_voice.volume = .25
-        self.sound_restart.volume = .25
-        self.sound_gameover_impact.volume = .6
+        # self.sound_music1.volume = 1
+        # self.sound_begin.volume = .25
+        # self.sound_galaxy.volume = .25
+        # self.sound_gameover_voice.volume = .25
+        # self.sound_restart.volume = .25
+        # self.sound_gameover_impact.volume = .6
+
+        self.sound_music1.volume = 0
+        self.sound_begin.volume = 0
+        self.sound_galaxy.volume = 0
+        self.sound_gameover_voice.volume = 0
+        self.sound_restart.volume = 0
+        self.sound_gameover_impact.volume = 0
 
 
     def reset_game(self):
         self.current_offset_y = 0
         self.current_y_loop = 0
         self.current_speed_x = 0
-        self.SPEED = 0.8;
+        self.SPEED = 0.8
         self.current_offset_x = 0
         self.tiles_coordinates = []
         self.score_txt = "SCORE: " + str(self.current_y_loop)
@@ -140,6 +151,7 @@ class MainWidget(RelativeLayout):
         self.ship.points = [x1, y1, x2, y2, x3, y3]
 
     def check_ship_collision(self):
+        return True #debug
         for i in range(0, len(self.tiles_coordinates)):
             ti_x, ti_y = self.tiles_coordinates[i]
             if ti_y > self.current_y_loop + 1:
@@ -162,6 +174,12 @@ class MainWidget(RelativeLayout):
             Color(1, 1, 1)
             for i in range(0, self.NB_TILES):
                 self.tiles.append(Quad())
+
+    def init_walls(self):
+        with self.canvas:
+            Color(1, 0, 0)
+            for i in range(0, self.NB_TILES):
+                self.walls.append(Quad())
 
     def pre_fill_tiles_coordinates(self):
         for i in range(0, 10):
@@ -187,14 +205,23 @@ class MainWidget(RelativeLayout):
 
         start_index = -int(self.V_NB_LINES / 2) + 1
         end_index = start_index + self.V_NB_LINES - 1
+        prev_r = 3
 
         for i in range(len(self.tiles_coordinates), self.NB_TILES):
             r = random.randint(0, 2)
+
+            if prev_r == r:
+                wall_present = True
+                print("wall present")
+
+            prev_r = r
+
             # 0 -> straight
             # 1 -> right
             # 2 -> left
              #
             ##
+
             self.tiles_coordinates.append((last_x, last_y))
             if last_x <= start_index:
                 r = 1
@@ -245,6 +272,7 @@ class MainWidget(RelativeLayout):
     def update_tiles(self):
         for i in range(0, self.NB_TILES):
             tile = self.tiles[i]
+            walls = self.walls[i]
             tile_coordinates = self.tiles_coordinates[i]
             xmin, ymin = self.get_tile_coordinates(tile_coordinates[0], tile_coordinates[1])
             xmax, ymax= self.get_tile_coordinates(tile_coordinates[0]+1, tile_coordinates[1]+1)
@@ -256,8 +284,13 @@ class MainWidget(RelativeLayout):
             x2, y2 = self.transform(xmin, ymax)
             x3, y3 = self.transform(xmax, ymax)
             x4, y4 = self.transform(xmax, ymin)
-
             tile.points = [x1, y1, x2, y2, x3, y3, x4, y4]
+
+            w_x1, w_y1 = self.transform(xmin, ymin)
+            w_x2, w_y2 = self.transform(xmin, ymax - self.WALL_OFFSET)
+            w_x3, w_y3 = self.transform(xmax, ymax - self.WALL_OFFSET)
+            w_x4, w_y4 = self.transform(xmax, ymin)
+            walls.points = [w_x1, w_y1, w_x1, w_y2, w_x4, w_y3, w_x4, w_y4]
 
     def update_vertical_line(self):
         # -1 0 1 2
