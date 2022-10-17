@@ -35,6 +35,7 @@ class MainWidget(RelativeLayout):
     horizontal_lines = []
 
     SPEED = .8
+    SPEED_OFFSET = 0.025
     current_offset_y = 0
     current_y_loop = 0
 
@@ -44,15 +45,19 @@ class MainWidget(RelativeLayout):
 
     NB_TILES = 16
     tiles = []
-    walls = []
     tiles_coordinates = []
 
     WALL_OFFSET = 5
-    wall_present = False
+    walls = []
+    tp_countdown = 0
+    TP_TIME = 45
+    TP_OFFSET = 0.05
+    cheat = False
 
     SHIP_WIDTH = .1
     SHIP_HEIGHT = 0.035
     SHIP_BASE_Y = 0.04
+    ship_opacity = 1
     ship = None
     ship_coordinates = [(0, 0), (0, 0), (0, 0)]
 
@@ -69,6 +74,7 @@ class MainWidget(RelativeLayout):
     sound_gameover_voice = None
     sound_music1 = None
     sound_restart = None
+    sound_jump = None
 
     def __init__(self, **kwargs):
         super(MainWidget, self).__init__(**kwargs)
@@ -92,24 +98,26 @@ class MainWidget(RelativeLayout):
     def init_audio(self): # soundc
         self.sound_begin = SoundLoader.load("audio/begin.wav")
         self.sound_galaxy = SoundLoader.load("audio/galaxy.wav")
+        self.sound_jump = SoundLoader.load("audio/Jump.wav")
         self.sound_gameover_impact = SoundLoader.load("audio/gameover_impact.wav")
         self.sound_gameover_voice = SoundLoader.load("audio/gameover_voice.wav")
         self.sound_music1 = SoundLoader.load("audio/music1.wav")
         self.sound_restart = SoundLoader.load("audio/restart.wav")
 
-        # self.sound_music1.volume = 1
-        # self.sound_begin.volume = .25
-        # self.sound_galaxy.volume = .25
-        # self.sound_gameover_voice.volume = .25
-        # self.sound_restart.volume = .25
-        # self.sound_gameover_impact.volume = .6
+        self.sound_jump.volume = 1
+        self.sound_music1.volume = .4
+        self.sound_begin.volume = .25
+        self.sound_galaxy.volume = .25
+        self.sound_gameover_voice.volume = .25
+        self.sound_restart.volume = .25
+        self.sound_gameover_impact.volume = .6
 
-        self.sound_music1.volume = 0
-        self.sound_begin.volume = 0
-        self.sound_galaxy.volume = 0
-        self.sound_gameover_voice.volume = 0
-        self.sound_restart.volume = 0
-        self.sound_gameover_impact.volume = 0
+        # self.sound_music1.volume = 0
+        # self.sound_begin.volume = 0
+        # self.sound_galaxy.volume = 0
+        # self.sound_gameover_voice.volume = 0
+        # self.sound_restart.volume = 0
+        # self.sound_gameover_impact.volume = 0
 
 
     def reset_game(self):
@@ -139,6 +147,8 @@ class MainWidget(RelativeLayout):
         base_y = self.SHIP_BASE_Y * self.height
         ship_half_width = self.SHIP_WIDTH * self.width / 2
         ship_height = self.height * self.SHIP_HEIGHT
+        if self.tp_countdown:
+            ship_half_width = ship_half_width*2
 
         self.ship_coordinates[0] = (center_x - ship_half_width, base_y)
         self.ship_coordinates[1] = (center_x, base_y + ship_height)
@@ -148,13 +158,19 @@ class MainWidget(RelativeLayout):
         x2, y2 = self.transform(*self.ship_coordinates[1])
         x3, y3 = self.transform(*self.ship_coordinates[2])
 
+
         self.ship.points = [x1, y1, x2, y2, x3, y3]
 
     def check_ship_collision(self):
-        return True #debug
+        # return True #debug
+        if self.cheat:
+            return True
+
         for i in range(0, len(self.tiles_coordinates)):
-            ti_x, ti_y = self.tiles_coordinates[i]
+            ti_x, ti_y, w = self.tiles_coordinates[i]
             if ti_y > self.current_y_loop + 1:
+                return False
+            if w == 1 and self.tp_countdown == 0:
                 return False
             if self.check_ship_collision_with_tile(ti_x, ti_y):
                 return True
@@ -183,7 +199,7 @@ class MainWidget(RelativeLayout):
 
     def pre_fill_tiles_coordinates(self):
         for i in range(0, 10):
-            self.tiles_coordinates.append((0, i))
+            self.tiles_coordinates.append((0, i, 0))
 
     def generate_tiles_coordinates(self):
 
@@ -209,20 +225,14 @@ class MainWidget(RelativeLayout):
 
         for i in range(len(self.tiles_coordinates), self.NB_TILES):
             r = random.randint(0, 2)
-
-            if prev_r == r:
-                wall_present = True
-                print("wall present")
-
-            prev_r = r
-
+            w = random.randint(0, 8)
             # 0 -> straight
             # 1 -> right
             # 2 -> left
              #
             ##
 
-            self.tiles_coordinates.append((last_x, last_y))
+            self.tiles_coordinates.append((last_x, last_y, w))
             if last_x <= start_index:
                 r = 1
 
@@ -231,14 +241,14 @@ class MainWidget(RelativeLayout):
 
             if r == 1:
                 last_x += 1
-                self.tiles_coordinates.append((last_x, last_y))
+                self.tiles_coordinates.append((last_x, last_y, 0))
                 last_y += 1
-                self.tiles_coordinates.append((last_x, last_y))
+                self.tiles_coordinates.append((last_x, last_y, 0))
             if r == 2:
                 last_x -= 1
-                self.tiles_coordinates.append((last_x, last_y))
+                self.tiles_coordinates.append((last_x, last_y, 0))
                 last_y += 1
-                self.tiles_coordinates.append((last_x, last_y))
+                self.tiles_coordinates.append((last_x, last_y, 0))
 
             last_y += 1
 
@@ -272,10 +282,10 @@ class MainWidget(RelativeLayout):
     def update_tiles(self):
         for i in range(0, self.NB_TILES):
             tile = self.tiles[i]
-            walls = self.walls[i]
+            wall = self.walls[i]
             tile_coordinates = self.tiles_coordinates[i]
             xmin, ymin = self.get_tile_coordinates(tile_coordinates[0], tile_coordinates[1])
-            xmax, ymax= self.get_tile_coordinates(tile_coordinates[0]+1, tile_coordinates[1]+1)
+            xmax, ymax = self.get_tile_coordinates(tile_coordinates[0]+1, tile_coordinates[1]+1)
 
             # 2    3
             #
@@ -286,11 +296,15 @@ class MainWidget(RelativeLayout):
             x4, y4 = self.transform(xmax, ymin)
             tile.points = [x1, y1, x2, y2, x3, y3, x4, y4]
 
-            w_x1, w_y1 = self.transform(xmin, ymin)
-            w_x2, w_y2 = self.transform(xmin, ymax - self.WALL_OFFSET)
-            w_x3, w_y3 = self.transform(xmax, ymax - self.WALL_OFFSET)
-            w_x4, w_y4 = self.transform(xmax, ymin)
-            walls.points = [w_x1, w_y1, w_x1, w_y2, w_x4, w_y3, w_x4, w_y4]
+            if tile_coordinates[2] == 1: #wallpoint
+                w_x1, w_y1 = self.transform(xmin, ymin)
+                w_x2, w_y2 = self.transform(xmin, ymax - self.WALL_OFFSET)
+                w_x3, w_y3 = self.transform(xmax, ymax - self.WALL_OFFSET)
+                w_x4, w_y4 = self.transform(xmax, ymin)
+                wall.points = [w_x1, w_y1, w_x1, w_y2, w_x4, w_y3, w_x4, w_y4]
+            else:
+                wall.points = [0, 0, 0, 0, 0, 0, 0, 0]
+
 
     def update_vertical_line(self):
         # -1 0 1 2
@@ -332,6 +346,11 @@ class MainWidget(RelativeLayout):
         self.update_tiles()
         self.update_ship()
 
+        if self.tp_countdown > 0:
+            self.tp_countdown -= 1
+            if self.tp_countdown == 0:
+                print("tp done")
+
         if not self.state_game_over and self.state_game_has_started:
             speed_y = self.SPEED * self.height / 100
             self.current_offset_y += speed_y * time_factor
@@ -342,7 +361,9 @@ class MainWidget(RelativeLayout):
                 self.current_y_loop += 1
                 self.score_txt = "SCORE: " + str(self.current_y_loop)
                 if self.current_y_loop % 50 == 0:
-                    self.SPEED += 0.05
+                    self.SPEED += self.SPEED_OFFSET
+                    #print("speed", self.SPEED)
+
                 self.generate_tiles_coordinates()
                 #print("loop : " + str(self.current_y_loop))
 

@@ -11,6 +11,15 @@ def on_keyboard_down(self, keyboard, keycode, text, modifiers):
         self.current_speed_x = self.SPEED_X
     elif keycode[1] == 'right':
         self.current_speed_x = -self.SPEED_X
+    elif keycode[1] == 'up':
+        self.tp_countdown = self.TP_TIME
+        self.sound_jump.play()
+        print("tp start", self.SPEED)
+    elif keycode[1] == 'k':
+        self.cheat = True
+    elif keycode[1] == 'i':
+        self.cheat = False
+
     return True
 
 
